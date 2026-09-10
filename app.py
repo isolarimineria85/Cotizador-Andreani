@@ -2,51 +2,48 @@ import streamlit as st
 import pandas as pd
 import re
 
-# Configuración inicial de la página
 st.set_page_config(page_title="Cotizador Andreani", page_icon="📦", layout="centered")
 
 def convertir_numero(valor):
-    """Limpia el formato de moneda/número por si Google Sheets exporta textos como '$ 1.000,50'"""
     if pd.isna(valor) or valor == '':
         return 0.0
     if isinstance(valor, str):
-        # Quitamos signo pesos, puntos de miles y cambiamos coma por punto decimal
         valor = valor.replace('$', '').replace('.', '').replace(',', '.').strip()
     try:
         return float(valor)
     except:
         return 0.0
 
-@st.cache_data(ttl=600)  # La app vuelve a leer el sheet cada 10 minutos (600 segundos) para buscar actualizaciones
+@st.cache_data(ttl=300)
 def cargar_datos_desde_sheets(url):
-    # Extraemos el ID y el GID de la URL que pegaste
+    # Extracción del ID del documento
     match_id = re.search(r'/d/([a-zA-Z0-9-_]+)', url)
-    match_gid = re.search(r'gid=([0-9]+)', url)
-    
     if not match_id:
-        raise ValueError("URL de Google Sheets no válida.")
-        
+        raise ValueError("La URL proporcionada no parece ser un enlace válido de Google Sheets.")
+    
     sheet_id = match_id.group(1)
+    
+    # Extracción del GID de la pestaña actual
+    match_gid = re.search(r'[#&?]gid=([0-9]+)', url)
     gid = match_gid.group(1) if match_gid else "0"
     
-    # Armamos la URL de exportación directa a CSV
+    # URL directa para descargar en CSV
     csv_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid={gid}"
     
-    # Leemos la planilla directamente desde internet
-    df = pd.read_csv(csv_url, header=None)
+    try:
+        df = pd.read_csv(csv_url, header=None)
+    except Exception as err:
+        raise ConnectionError(f"No se pudo descargar el CSV. Verificá que el acceso general esté en 'Cualquier persona con el enlace'. Detalle: {err}")
     
-    # Las filas de datos van de la 6 a la 32 (índices 6 a 32 en pandas si no usamos cabecera)
     data_rows = df.iloc[6:33].copy()
-    
     tramos_kg = [100, 125, 150, 175, 200, 225, 250, 275, 300, 325, 350, 400, 500]
     datos_limpios = []
     
     for index, row in data_rows.iterrows():
         destino = str(row.iloc[3]).strip().upper()
-        if destino == 'NAN' or not destino:
+        if destino == 'NAN' or not destino or destino == 'NONE':
             continue
             
-        # Extraer tarifas por tramo (columnas 4 a 16) limpiando el formato de número
         tarifas = {t: convertir_numero(row.iloc[4 + i]) for i, t in enumerate(tramos_kg)}
         
         datos_limpios.append({
@@ -90,21 +87,20 @@ def calcular_tarifa(destino_data, peso_real, m3):
             "Costo Total": tarifa_500 + costo_excedente
         }
 
-# --- INTERFAZ DE STREAMLIT ---
+# --- INTERFAZ ---
 st.title("📦 Cotizador Automático de Fletes")
 st.markdown("Calculá la tarifa seleccionando destino, peso y volumen de la carga.")
 
-# ACA TENES QUE PEGAR EL LINK DE TU GOOGLE SHEET
-URL_GOOGLE_SHEET = "https://docs.google.com/spreadsheets/d/1ENaoYS3fQnrauKP2So9fqiLeVRY192-jBb7Qv6xUD-A/edit?usp=drive_link"
+# PEGAR ACÁ EL ENLACE DE GOOGLE SHEETS
+URL_GOOGLE_SHEET = "PEGAR_TU_LINK_AQUI"
 
 try:
     df_tarifas = cargar_datos_desde_sheets(URL_GOOGLE_SHEET)
     destinos = df_tarifas['Destino'].tolist()
 except Exception as e:
-    st.error("Error al leer el Google Sheet. Verificá que el link sea correcto y que tenga permisos de 'Cualquier persona con el enlace'.")
+    st.error(f"Error de conexión: {e}")
     st.stop()
 
-# Formularios de ingreso
 st.subheader("Datos de la carga")
 col1, col2, col3 = st.columns(3)
 
@@ -116,7 +112,6 @@ with col2:
 with col3:
     m3_carga = st.number_input("Volumen (M3)", min_value=0.0, value=6.08, step=0.1)
 
-# Botón para calcular
 if st.button("Calcular Costo", type="primary"):
     destino_data = df_tarifas[df_tarifas['Destino'] == destino_seleccionado].iloc[0]
     resultado = calcular_tarifa(destino_data, peso_real, m3_carga)
