@@ -126,7 +126,7 @@ st.title("📦 Cotizador Automático de Fletes")
 st.markdown("Calculá la tarifa seleccionando destino, peso y volumen de la carga.")
 
 # PEGAR ACÁ EL ENLACE DE GOOGLE SHEETS
-URL_GOOGLE_SHEET = "PEGAR_TU_LINK_AQUI"
+URL_GOOGLE_SHEET = "https://docs.google.com/spreadsheets/d/1ENaoYS3fQnrauKP2So9fqiLeVRY192-jBb7Qv6xUD-A/edit?usp=drive_link"
 
 try:
     df_tarifas = cargar_datos_desde_sheets(URL_GOOGLE_SHEET)
