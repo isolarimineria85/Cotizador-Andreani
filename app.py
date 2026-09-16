@@ -3,50 +3,66 @@ import pandas as pd
 import re
 
 # 1. Configuración de página
-st.set_page_config(page_title="Cotizador Larocca Neumáticos", page_icon="🛞", layout="centered")
+st.set_page_config(page_title="Cotizador Andreani", page_icon="📦", layout="centered")
 
-# 2. Inyección de CSS para diseño corporativo (Rojo Larocca)
+# 2. Inyección de CSS para tipografía sobria y diseño corporativo
 st.markdown("""
     <style>
         .block-container {
             padding-top: 2rem;
         }
-        h1, h2, h3 {
-            color: #000000 !important;
-            font-family: 'Arial', sans-serif;
-            font-weight: 700 !important;
+        /* Estilo para el título principal */
+        .titulo-cotizador {
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            color: #111111;
+            font-size: 2.3rem;
+            font-weight: 800;
+            text-align: center;
+            letter-spacing: -0.5px;
+            margin-bottom: 5px;
+            padding-bottom: 10px;
+            border-bottom: 3px solid #E3000F;
         }
-        /* Estilo del botón de calcular (Rojo Larocca y texto blanco) */
+        .subtitulo-cotizador {
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            color: #666666;
+            font-size: 1rem;
+            text-align: center;
+            margin-bottom: 25px;
+        }
+        /* Botón principal */
         .stButton>button {
             background-color: #E3000F !important; 
             color: #FFFFFF !important;
-            font-weight: 800 !important;
-            border-radius: 5px !important;
+            font-weight: 700 !important;
+            font-size: 1rem !important;
+            border-radius: 6px !important;
             border: 2px solid #E3000F !important;
             width: 100%;
+            padding: 10px 0px !important;
             transition: all 0.3s ease;
         }
         .stButton>button:hover {
             background-color: #000000 !important;
-            color: #E3000F !important;
+            color: #FFFFFF !important;
             border: 2px solid #000000 !important;
         }
-        /* Estilo de la caja de información del destino */
+        /* Caja de alerta/confirmación de destino */
         div[data-testid="stAlert"] {
             background-color: #FDF2F2 !important;
             border-left: 5px solid #E3000F !important;
             color: #000000 !important;
         }
-        /* Estilo de las métricas (los números grandes de resultados) */
+        /* Tarjetas de resultados */
         div[data-testid="metric-container"] {
             background-color: #F8F9FA;
             border: 1px solid #E9ECEF;
             border-radius: 8px;
             padding: 15px;
-            box-shadow: 2px 2px 5px rgba(0,0,0,0.05);
+            box-shadow: 0px 2px 4px rgba(0,0,0,0.04);
         }
         div[data-testid="stMetricValue"] {
-            color: #000000 !important;
+            color: #111111 !important;
             font-weight: bold !important;
         }
     </style>
@@ -153,17 +169,9 @@ def calcular_tarifa(cp_data, peso_real, m3):
             "Costo Total": tarifa_500 + costo_excedente
         }
 
-# --- ENCABEZADO CON LOGO ---
-# Centramos el logo usando las columnas de Streamlit
-col_logo1, col_logo2, col_logo3 = st.columns([1, 2, 1])
-with col_logo2:
-    try:
-        st.image("Logo Larocca.jpg", use_container_width=True)
-    except Exception:
-        # Si la imagen todavía no se subió a GitHub, muestra este título de respaldo
-        st.title("Cotizador Larocca Neumáticos")
-
-st.markdown("---")
+# --- ENCABEZADO CON TIPOGRAFÍA TIPOGRÁFICA ---
+st.markdown('<div class="titulo-cotizador">Cotizador Andreani</div>', unsafe_allow_html=True)
+st.markdown('<div class="subtitulo-cotizador">Cálculo automático de tarifas de flete según destino y peso volumétrico</div>', unsafe_allow_html=True)
 
 URL_GOOGLE_SHEET = "https://docs.google.com/spreadsheets/d/10npzsWWPaospCZbE692bia6tVPgxKnVa/edit?gid=170077304#gid=170077304"
 
