@@ -1,10 +1,8 @@
 import streamlit as st
 import pandas as pd
 import re
-import io
-import urllib.request
 
-st.set_page_config(page_title="Cotizador Andreani", page_icon="📦", layout="centered")
+st.set_page_config(page_title="Cotizador Andreani por CP", page_icon="📦", layout="centered")
 
 def limpiar_numero(valor):
     if pd.isna(valor) or valor == '' or valor is None:
@@ -21,62 +19,60 @@ def limpiar_numero(valor):
 def cargar_datos_desde_drive(url):
     match_id = re.search(r'/d/([a-zA-Z0-9-_]+)', url)
     if not match_id:
-        raise ValueError("La URL proporcionada no parece ser un enlace válido de Google Drive/Sheets.")
+        raise ValueError("URL de Google Drive / Sheets no válida.")
     
     file_id = match_id.group(1)
+    match_gid = re.search(r'[#&?]gid=([0-9]+)', url)
+    gid = match_gid.group(1) if match_gid else "170077304"
     
-    # Intento 1: Descarga directa en formato Excel (.xlsx)
-    excel_url = f"https://docs.google.com/spreadsheets/d/{file_id}/export?format=xlsx"
+    # URL directa para descargar la solapa específica en formato CSV
+    csv_url = f"https://docs.google.com/spreadsheets/d/{file_id}/export?format=csv&gid={gid}"
     
     try:
-        df = pd.read_excel(excel_url, header=None)
-    except Exception:
-        # Intento 2: Descarga en formato CSV (por si el archivo se convirtió a Google Sheets nativo)
-        csv_url = f"https://docs.google.com/spreadsheets/d/{file_id}/export?format=csv"
         df = pd.read_csv(csv_url, header=None)
+    except Exception:
+        # Alternativa de respaldo en formato XLSX
+        excel_url = f"https://docs.google.com/spreadsheets/d/{file_id}/export?format=xlsx"
+        df = pd.read_excel(excel_url, header=None)
 
     datos_limpios = []
     tramos_kg = [100, 125, 150, 175, 200, 225, 250, 275, 300, 325, 350, 400, 500]
 
+    # Recorrer las filas buscando los CPs
     for idx in range(len(df)):
-        row = df.iloc[idx].values
-        valores_fila = [v for v in row if pd.notna(v) and str(v).strip() != '']
+        row = df.iloc[idx]
         
-        if len(valores_fila) < 13:
+        # Tomar la Columna D (Índice 3 en Pandas)
+        valor_cp = str(row.iloc[3]).strip().replace('.0', '') if len(row) > 3 else ''
+        
+        # Si la columna D no tiene el CP, intentar con las primeras columnas
+        if valor_cp.upper() in ['NAN', 'NONE', '', 'CP', 'CODIGO POSTAL', 'ORIGEN']:
+            posible_cp = str(row.iloc[0]).strip().replace('.0', '') if len(row) > 0 else ''
+            if posible_cp.isdigit():
+                valor_cp = posible_cp
+
+        if not valor_cp.isdigit():
             continue
-            
-        # Tomar la clave de búsqueda (Código Postal / Destino)
-        clave_cp = str(valores_fila[0]).strip().replace('.0', '')
-        
-        # Omitir filas de encabezado o vacías
-        if clave_cp.upper() in ['NAN', 'NONE', 'ORIGEN', 'REGION / ZONA DESTINO', 'CP', 'CODIGO POSTAL'] or len(valores_fila) < 13:
-            # Si el CP estaba en la segunda columna:
-            if len(valores_fila) > 1 and str(valores_fila[1]).strip().replace('.0', '').isdigit():
-                clave_cp = str(valores_fila[1]).strip().replace('.0', '')
-                valores_numericos = valores_fila[2:]
-            else:
-                continue
-        else:
-            valores_numericos = valores_fila[1:]
 
-        # Procesar valores de las tarifas
+        # Mapear tarifas de peso
         tarifas = {}
+        # Asumiendo que las tarifas empiezan en la columna E (Índice 4)
         for i, t in enumerate(tramos_kg):
-            if i < len(valores_numericos):
-                tarifas[t] = limpiar_numero(valores_numericos[i])
+            if (4 + i) < len(row):
+                tarifas[t] = limpiar_numero(row.iloc[4 + i])
 
-        tarifa_500 = limpiar_numero(valores_numericos[12]) if len(valores_numericos) > 12 else 0.0
-        kilo_exc = limpiar_numero(valores_numericos[13]) if len(valores_numericos) > 13 else 0.0
+        tarifa_500 = limpiar_numero(row.iloc[16]) if len(row) > 16 else 0.0
+        kilo_exc = limpiar_numero(row.iloc[17]) if len(row) > 17 else 0.0
 
         datos_limpios.append({
-            'CP': clave_cp,
+            'CP': valor_cp,
             'Tarifas': tarifas,
             'Tarifa_500': tarifa_500,
             'Kilo_Exc': kilo_exc
         })
 
     if not datos_limpios:
-        raise ValueError("No se pudieron extraer datos del tarifario. Verificá que el archivo en Drive esté compartido públicamente.")
+        raise ValueError("No se encontraron Códigos Postales válidos en esta solapa de Google Sheets.")
 
     return pd.DataFrame(datos_limpios)
 
@@ -114,19 +110,19 @@ def calcular_tarifa(cp_data, peso_real, m3):
 
 # --- INTERFAZ STREAMLIT ---
 st.title("📦 Cotizador Andreani por Código Postal")
-st.markdown("Calculá el flete ingresando el Código Postal de destino, peso y volumen de la carga.")
+st.markdown("Calculá el flete ingresando el Código Postal de destino.")
 
-# URL del nuevo archivo en Google Drive
-URL_GOOGLE_SHEET = "https://docs.google.com/spreadsheets/d/10npzsWWPaospCZbE692bia6tVPgxKnVa/edit?usp=sharing"
+# URL exacta de tu pestaña
+URL_GOOGLE_SHEET = "https://docs.google.com/spreadsheets/d/10npzsWWPaospCZbE692bia6tVPgxKnVa/edit?gid=170077304#gid=170077304"
 
 try:
     df_tarifas = cargar_datos_desde_drive(URL_GOOGLE_SHEET)
     lista_cps = sorted(df_tarifas['CP'].unique().tolist())
 except Exception as e:
-    st.error(f"Error al leer el tarifario desde Google Drive: {e}")
+    st.error(f"Error de conexión con el tarifario: {e}")
     st.stop()
 
-st.subheader("Datos de la Carga y Destino")
+st.subheader("Datos de la Carga")
 col1, col2, col3 = st.columns(3)
 
 with col1:
@@ -140,19 +136,18 @@ if st.button("Calcular Cotización", type="primary"):
     cp_data = df_tarifas[df_tarifas['CP'] == cp_ingresado].iloc[0]
     resultado = calcular_tarifa(cp_data, peso_real, m3_carga)
     
-    st.success("¡Cotización calculada exitosamente!")
+    st.success("¡Cotización calculada!")
     
     c1, c2, c3 = st.columns(3)
     c1.metric("Peso Facturable", f"{resultado['Peso Facturable']:,.2f} kg")
-    c2.metric("Categoría / Tramo", resultado['Tramo'])
+    c2.metric("Tramo Aplicado", resultado['Tramo'])
     c3.metric("Costo Total", f"${resultado['Costo Total']:,.2f}")
     
     st.divider()
-    st.markdown("### 📋 Desglose del Cálculo")
-    st.write(f"- **Código Postal Seleccionado:** {cp_ingresado}")
-    st.write(f"- **Peso Volumétrico:** {resultado['Peso Volumétrico']:,.2f} kg (M3 × 175 kg)")
-    st.write(f"- **Tarifa Base Aplicada:** ${resultado['Costo Base']:,.2f}")
+    st.markdown("### 📋 Desglose")
+    st.write(f"- **CP Seleccionado:** {cp_ingresado}")
+    st.write(f"- **Peso Volumétrico:** {resultado['Peso Volumétrico']:,.2f} kg")
+    st.write(f"- **Tarifa Base:** ${resultado['Costo Base']:,.2f}")
     if resultado['Costo Excedente'] > 0:
-        kg_exc = resultado['Peso Facturable'] - 500
-        st.write(f"- **Kilos Excedentes (>500 kg):** {kg_exc:,.2f} kg")
-        st.write(f"- **Costo por Excedente:** ${resultado['Costo Excedente']:,.2f}")
+        st.write(f"- **Kilos Excedentes (>500 kg):** {resultado['Peso Facturable'] - 500:,.2f} kg")
+        st.write(f"- **Costo Excedente:** ${resultado['Costo Excedente']:,.2f}")
