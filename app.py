@@ -2,7 +2,57 @@ import streamlit as st
 import pandas as pd
 import re
 
-st.set_page_config(page_title="Cotizador Andreani por CP", page_icon="📦", layout="centered")
+# 1. Configuración de página (Acá cambiamos el título de la pestaña)
+st.set_page_config(page_title="Cotizador Larocca Neumáticos", page_icon="🛞", layout="centered")
+
+# 2. Inyección de CSS para diseño corporativo (Colores Larocca / Pirelli)
+st.markdown("""
+    <style>
+        /* Color de fondo de la aplicación (opcional, lo dejamos claro para lectura) */
+        .block-container {
+            padding-top: 2rem;
+        }
+        /* Estilo de los encabezados */
+        h1, h2, h3 {
+            color: #000000 !important;
+            font-family: 'Arial', sans-serif;
+            font-weight: 700 !important;
+        }
+        /* Estilo del botón de calcular (Amarillo Larocca/Pirelli y texto negro) */
+        .stButton>button {
+            background-color: #FFCC00 !important;
+            color: #000000 !important;
+            font-weight: 800 !important;
+            border-radius: 5px !important;
+            border: 2px solid #FFCC00 !important;
+            width: 100%;
+            transition: all 0.3s ease;
+        }
+        .stButton>button:hover {
+            background-color: #000000 !important;
+            color: #FFCC00 !important;
+            border: 2px solid #000000 !important;
+        }
+        /* Estilo de la caja de información del destino (Fondo amarillo muy suave) */
+        div[data-testid="stAlert"] {
+            background-color: #FFF8D6 !important;
+            border-left: 5px solid #FFCC00 !important;
+            color: #000000 !important;
+        }
+        /* Estilo de las métricas (los números grandes de resultados) */
+        div[data-testid="metric-container"] {
+            background-color: #F8F9FA;
+            border: 1px solid #E9ECEF;
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.05);
+        }
+        div[data-testid="stMetricValue"] {
+            color: #000000 !important;
+            font-weight: bold !important;
+        }
+    </style>
+""", unsafe_allow_html=True)
 
 def limpiar_numero(valor):
     if pd.isna(valor) or valor == '' or valor is None:
@@ -37,57 +87,39 @@ def cargar_datos_desde_drive(url):
     tramos_kg = [100, 125, 150, 175, 200, 225, 250, 275, 300, 325, 350, 400, 500]
 
     for idx in range(len(df)):
-        row = df.iloc[idx].values
-        
-        # Filtrar elementos no nulos para ubicar dinámicamente las celdas
-        valores_fila = [v for v in row if pd.notna(v) and str(v).strip() != '']
-        if len(valores_fila) < 5:
+        row = df.iloc[idx]
+        if len(row) < 20:
             continue
             
-        # Detectar la celda donde está el CP
-        valor_cp = ""
-        localidad = "No especificada"
-        provincia = "No especificada"
-        valores_numericos = []
-        
-        for i, val in enumerate(valores_fila):
-            val_clean = str(val).strip().replace('.0', '')
-            if val_clean.isdigit() and len(val_clean) <= 5:
-                valor_cp = val_clean
-                # Extraer texto cercano como localidad y provincia
-                textos = [str(x).strip() for x in valores_fila[:i] if not str(x).strip().replace('.0', '').isdigit()]
-                if len(textos) >= 2:
-                    provincia = textos[0]
-                    localidad = textos[1]
-                elif len(textos) == 1:
-                    localidad = textos[0]
-                valores_numericos = valores_fila[i+1:]
-                break
-
-        if not valor_cp:
+        valor_cp = str(row.iloc[3]).strip().replace('.0', '')
+        if not valor_cp.isdigit():
             continue
+            
+        provincia = str(row.iloc[4]).strip()
+        localidad = str(row.iloc[5]).strip()
 
-        # Mapear tarifas de peso
         tarifas = {}
         for i, t in enumerate(tramos_kg):
-            if i < len(valores_numericos):
-                tarifas[t] = limpiar_numero(valores_numericos[i])
+            col_idx = 6 + i
+            tarifas[t] = limpiar_numero(row.iloc[col_idx])
 
-        tarifa_500 = limpiar_numero(valores_numericos[12]) if len(valores_numericos) > 12 else 0.0
-        kilo_exc = limpiar_numero(valores_numericos[13]) if len(valores_numericos) > 13 else 0.0
+        tarifa_500 = limpiar_numero(row.iloc[18])
+        kilo_exc = limpiar_numero(row.iloc[19])
+
+        etiqueta = f"{valor_cp} - {localidad} ({provincia})"
 
         datos_limpios.append({
             'CP': valor_cp,
             'Localidad': localidad,
             'Provincia': provincia,
-            'Etiqueta': f"{valor_cp} - {localidad} ({provincia})" if localidad != "No especificada" else valor_cp,
+            'Etiqueta': etiqueta,
             'Tarifas': tarifas,
             'Tarifa_500': tarifa_500,
             'Kilo_Exc': kilo_exc
         })
 
     if not datos_limpios:
-        raise ValueError("No se encontraron registros de Códigos Postales en la solapa del Google Sheet.")
+        raise ValueError("No se encontraron registros.")
 
     return pd.DataFrame(datos_limpios)
 
@@ -123,9 +155,19 @@ def calcular_tarifa(cp_data, peso_real, m3):
             "Costo Total": tarifa_500 + costo_excedente
         }
 
-# --- INTERFAZ STREAMLIT ---
-st.title("📦 Cotizador Andreani por Código Postal")
-st.markdown("Seleccioná el Código Postal para ver la localidad asociada y calcular el flete.")
+# --- ENCABEZADO CON LOGO ---
+# Si tenés el logo subido en tu web, lo llamamos directo. Si falla, queda el título limpio.
+st.markdown(
+    """
+    <div style="text-align: center; margin-bottom: 20px;">
+        <img src="https://larocca.com.ar/wp-content/uploads/2023/04/Logo-Larocca-header.png" alt="Larocca Neumáticos" width="250">
+    </div>
+    """, 
+    unsafe_allow_html=True
+)
+
+st.title("Cotizador de Fletes Logísticos")
+st.markdown("---")
 
 URL_GOOGLE_SHEET = "https://docs.google.com/spreadsheets/d/10npzsWWPaospCZbE692bia6tVPgxKnVa/edit?gid=170077304#gid=170077304"
 
@@ -136,16 +178,13 @@ except Exception as e:
     st.error(f"Error de conexión con el tarifario: {e}")
     st.stop()
 
-st.subheader("Datos de Destino y Carga")
+st.subheader("Datos de Envío")
 
-# Desplegable enriquecido con CP + Localidad + Provincia
-seleccion = st.selectbox("Buscar por Código Postal / Localidad", options=opciones_cp)
+seleccion = st.selectbox("📌 Buscar por Código Postal o Localidad", options=opciones_cp)
 
-# Extraer el registro seleccionado
 cp_data = df_tarifas[df_tarifas['Etiqueta'] == seleccion].iloc[0]
 
-# Mostrar tarjeta informativa del destino
-st.info(f"📍 **Destino Seleccionado:** Localidad de **{cp_data['Localidad']}**, Provincia de **{cp_data['Provincia']}** (CP {cp_data['CP']})")
+st.info(f"**Destino Confirmado:** {cp_data['Localidad']}, {cp_data['Provincia']} (CP {cp_data['CP']})")
 
 col1, col2 = st.columns(2)
 with col1:
@@ -153,24 +192,24 @@ with col1:
 with col2:
     m3_carga = st.number_input("Volumen (M3)", min_value=0.0, value=6.08, step=0.1)
 
-if st.button("Calcular Cotización", type="primary"):
+st.markdown("<br>", unsafe_allow_html=True)
+
+if st.button("CALCULAR COTIZACIÓN", type="primary"):
     resultado = calcular_tarifa(cp_data, peso_real, m3_carga)
     
-    st.success("¡Cotización calculada!")
+    st.success("✔️ Cotización calculada exitosamente")
     
     c1, c2, c3 = st.columns(3)
     c1.metric("Peso Facturable", f"{resultado['Peso Facturable']:,.2f} kg")
-    c2.metric("Tramo Aplicado", resultado['Tramo'])
+    c2.metric("Tramo de Escala", resultado['Tramo'])
     c3.metric("Costo Total", f"${resultado['Costo Total']:,.2f}")
     
     st.divider()
-    st.markdown("### 📋 Desglose del Cálculo")
-    st.write(f"- **Código Postal:** {cp_data['CP']}")
-    st.write(f"- **Localidad:** {cp_data['Localidad']}")
-    st.write(f"- **Provincia:** {cp_data['Provincia']}")
-    st.write(f"- **Peso Volumétrico:** {resultado['Peso Volumétrico']:,.2f} kg (Cálculo: M3 × 175 kg)")
+    st.markdown("### 📋 Detalle de Facturación")
+    st.write(f"- **Destino:** {cp_data['Localidad']}, {cp_data['Provincia']} (CP {cp_data['CP']})")
+    st.write(f"- **Peso Volumétrico:** {resultado['Peso Volumétrico']:,.2f} kg (M3 × 175 kg)")
     st.write(f"- **Tarifa Base Aplicada:** ${resultado['Costo Base']:,.2f}")
     if resultado['Costo Excedente'] > 0:
         kg_exc = resultado['Peso Facturable'] - 500
         st.write(f"- **Kilos Excedentes (>500 kg):** {kg_exc:,.2f} kg")
-        st.write(f"- **Costo Excedente:** ${resultado['Costo Excedente']:,.2f}")
+        st.write(f"- **Costo por Excedente:** ${resultado['Costo Excedente']:,.2f}")
