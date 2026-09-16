@@ -2,41 +2,39 @@ import streamlit as st
 import pandas as pd
 import re
 
-# 1. Configuración de página (Acá cambiamos el título de la pestaña)
+# 1. Configuración de página
 st.set_page_config(page_title="Cotizador Larocca Neumáticos", page_icon="🛞", layout="centered")
 
-# 2. Inyección de CSS para diseño corporativo (Colores Larocca / Pirelli)
+# 2. Inyección de CSS para diseño corporativo (Rojo Larocca)
 st.markdown("""
     <style>
-        /* Color de fondo de la aplicación (opcional, lo dejamos claro para lectura) */
         .block-container {
             padding-top: 2rem;
         }
-        /* Estilo de los encabezados */
         h1, h2, h3 {
             color: #000000 !important;
             font-family: 'Arial', sans-serif;
             font-weight: 700 !important;
         }
-        /* Estilo del botón de calcular (Amarillo Larocca/Pirelli y texto negro) */
+        /* Estilo del botón de calcular (Rojo Larocca y texto blanco) */
         .stButton>button {
-            background-color: #FFCC00 !important;
-            color: #000000 !important;
+            background-color: #E3000F !important; 
+            color: #FFFFFF !important;
             font-weight: 800 !important;
             border-radius: 5px !important;
-            border: 2px solid #FFCC00 !important;
+            border: 2px solid #E3000F !important;
             width: 100%;
             transition: all 0.3s ease;
         }
         .stButton>button:hover {
             background-color: #000000 !important;
-            color: #FFCC00 !important;
+            color: #E3000F !important;
             border: 2px solid #000000 !important;
         }
-        /* Estilo de la caja de información del destino (Fondo amarillo muy suave) */
+        /* Estilo de la caja de información del destino */
         div[data-testid="stAlert"] {
-            background-color: #FFF8D6 !important;
-            border-left: 5px solid #FFCC00 !important;
+            background-color: #FDF2F2 !important;
+            border-left: 5px solid #E3000F !important;
             color: #000000 !important;
         }
         /* Estilo de las métricas (los números grandes de resultados) */
@@ -156,17 +154,15 @@ def calcular_tarifa(cp_data, peso_real, m3):
         }
 
 # --- ENCABEZADO CON LOGO ---
-# Si tenés el logo subido en tu web, lo llamamos directo. Si falla, queda el título limpio.
-st.markdown(
-    """
-    <div style="text-align: center; margin-bottom: 20px;">
-        <img src="https://larocca.com.ar/wp-content/uploads/2023/04/Logo-Larocca-header.png" alt="Larocca Neumáticos" width="250">
-    </div>
-    """, 
-    unsafe_allow_html=True
-)
+# Centramos el logo usando las columnas de Streamlit
+col_logo1, col_logo2, col_logo3 = st.columns([1, 2, 1])
+with col_logo2:
+    try:
+        st.image("Logo Larocca.jpg", use_container_width=True)
+    except Exception:
+        # Si la imagen todavía no se subió a GitHub, muestra este título de respaldo
+        st.title("Cotizador Larocca Neumáticos")
 
-st.title("Cotizador de Fletes Logísticos")
 st.markdown("---")
 
 URL_GOOGLE_SHEET = "https://docs.google.com/spreadsheets/d/10npzsWWPaospCZbE692bia6tVPgxKnVa/edit?gid=170077304#gid=170077304"
