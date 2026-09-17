@@ -2,16 +2,15 @@ import streamlit as st
 import pandas as pd
 import re
 
-# 1. Configuración inicial de la página
+# 1. Configuración de página
 st.set_page_config(page_title="Cotizador Andreani", page_icon="📦", layout="centered")
 
-# 2. Inyección de CSS para diseño corporativo y tarjetas centradas
+# 2. CSS para diseño e interfaz centrada
 st.markdown("""
     <style>
         .block-container {
             padding-top: 2rem;
         }
-        /* Estilos del encabezado principal */
         .titulo-cotizador {
             font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
             color: #111111;
@@ -30,7 +29,6 @@ st.markdown("""
             text-align: center;
             margin-bottom: 25px;
         }
-        /* Botón de calcular */
         .stButton>button {
             background-color: #E3000F !important; 
             color: #FFFFFF !important;
@@ -47,13 +45,11 @@ st.markdown("""
             color: #FFFFFF !important;
             border: 2px solid #000000 !important;
         }
-        /* Caja de alerta/confirmación de destino */
         div[data-testid="stAlert"] {
             background-color: #FDF2F2 !important;
             border-left: 5px solid #E3000F !important;
             color: #000000 !important;
         }
-        /* Tarjeta Destacada de Resultado Final (Centrada y Clara) */
         .resultado-box {
             background-color: #F8F9FA;
             border: 2px solid #E3000F;
@@ -97,7 +93,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# 3. Función de conversión numérica inmune a errores de separadores
+# 3. Conversor numérico inteligente
 def limpiar_numero(valor):
     if pd.isna(valor) or valor == '' or valor is None:
         return 0.0
@@ -106,10 +102,24 @@ def limpiar_numero(valor):
     
     val_str = str(valor).replace('$', '').strip()
     
-    # Si contiene coma, manejamos formato de miles con punto y decimal con coma
-    if ',' in val_str:
-        val_str = val_str.replace('.', '').replace(',', '.')
-    
+    # Caso A: Si tiene ambos separadores ("473.591,51" o "473,591.51")
+    if '.' in val_str and ',' in val_str:
+        if val_str.rfind('.') < val_str.rfind(','):
+            val_str = val_str.replace('.', '').replace(',', '.')
+        else:
+            val_str = val_str.replace(',', '')
+    # Caso B: Solo contiene coma decimal ("473591,51")
+    elif ',' in val_str:
+        val_str = val_str.replace(',', '.')
+    # Caso C: Solo contiene punto ("473.591")
+    elif '.' in val_str:
+        partes = val_str.split('.')
+        # Si tiene 3 dígitos tras el punto (ej: 473.591), es separador de miles
+        if len(partes) == 2 and len(partes[1]) == 3 and float(partes[0]) > 0:
+            val_str = val_str.replace('.', '')
+        elif len(partes) > 2:
+            val_str = val_str.replace('.', '')
+            
     try:
         return float(val_str)
     except:
@@ -169,7 +179,7 @@ def cargar_datos_desde_drive(url):
         })
 
     if not datos_limpios:
-        raise ValueError("No se encontraron registros de Códigos Postales en las columnas D, E y F.")
+        raise ValueError("No se encontraron registros de Códigos Postales.")
 
     return pd.DataFrame(datos_limpios)
 
@@ -237,7 +247,6 @@ st.markdown("<br>", unsafe_allow_html=True)
 if st.button("CALCULAR COTIZACIÓN", type="primary"):
     resultado = calcular_tarifa(cp_data, peso_real, m3_carga)
     
-    # RESULTADO PRINCIPAL CENTRADO Y DESTACADO
     st.markdown(f"""
         <div class="resultado-box">
             <div class="resultado-label">Costo Total del Flete</div>
@@ -253,7 +262,7 @@ if st.button("CALCULAR COTIZACIÓN", type="primary"):
     st.write(f"- **Código Postal:** {cp_data['CP']}")
     st.write(f"- **Localidad:** {cp_data['Localidad']}, {cp_data['Provincia']}")
     st.write(f"- **Peso Volumétrico:** {resultado['Peso Volumétrico']:,.2f} kg (Cálculo: M3 × 175 kg)")
-    st.write(f"- **Tarifa Base:** ${resultado['Costo Base']:,.2f}")
+    st.write(f"- **Tarifa Base Aplicada:** ${resultado['Costo Base']:,.2f}")
     if resultado['Costo Excedente'] > 0:
         kg_exc = resultado['Peso Facturable'] - 500
         st.write(f"- **Kilos Excedentes (>500 kg):** {kg_exc:,.2f} kg")
