@@ -2,16 +2,16 @@ import streamlit as st
 import pandas as pd
 import re
 
-# 1. Configuración de página
+# 1. Configuración inicial de la página
 st.set_page_config(page_title="Cotizador Andreani", page_icon="📦", layout="centered")
 
-# 2. Inyección de CSS para tipografía sobria y diseño corporativo
+# 2. Inyección de CSS para diseño corporativo y tarjetas centradas
 st.markdown("""
     <style>
         .block-container {
             padding-top: 2rem;
         }
-        /* Estilo para el título principal */
+        /* Estilos del encabezado principal */
         .titulo-cotizador {
             font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
             color: #111111;
@@ -30,16 +30,16 @@ st.markdown("""
             text-align: center;
             margin-bottom: 25px;
         }
-        /* Botón principal */
+        /* Botón de calcular */
         .stButton>button {
             background-color: #E3000F !important; 
             color: #FFFFFF !important;
             font-weight: 700 !important;
-            font-size: 1rem !important;
+            font-size: 1.1rem !important;
             border-radius: 6px !important;
             border: 2px solid #E3000F !important;
             width: 100%;
-            padding: 10px 0px !important;
+            padding: 12px 0px !important;
             transition: all 0.3s ease;
         }
         .stButton>button:hover {
@@ -53,27 +53,63 @@ st.markdown("""
             border-left: 5px solid #E3000F !important;
             color: #000000 !important;
         }
-        /* Tarjetas de resultados */
-        div[data-testid="metric-container"] {
+        /* Tarjeta Destacada de Resultado Final (Centrada y Clara) */
+        .resultado-box {
             background-color: #F8F9FA;
-            border: 1px solid #E9ECEF;
-            border-radius: 8px;
-            padding: 15px;
-            box-shadow: 0px 2px 4px rgba(0,0,0,0.04);
+            border: 2px solid #E3000F;
+            border-radius: 12px;
+            padding: 25px;
+            text-align: center;
+            margin-top: 20px;
+            margin-bottom: 25px;
+            box-shadow: 0px 4px 12px rgba(0,0,0,0.08);
         }
-        div[data-testid="stMetricValue"] {
-            color: #111111 !important;
-            font-weight: bold !important;
+        .resultado-label {
+            font-size: 1.1rem;
+            color: #555555;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 5px;
+        }
+        .resultado-monto {
+            font-size: 2.8rem;
+            color: #E3000F;
+            font-weight: 900;
+            margin-bottom: 15px;
+            line-height: 1;
+        }
+        .resultado-sub-info {
+            display: flex;
+            justify-content: space-around;
+            border-top: 1px solid #E9ECEF;
+            padding-top: 15px;
+            margin-top: 10px;
+        }
+        .sub-info-item {
+            font-size: 0.95rem;
+            color: #333333;
+        }
+        .sub-info-val {
+            font-weight: bold;
+            color: #000000;
         }
     </style>
 """, unsafe_allow_html=True)
 
+# 3. Función de conversión numérica inmune a errores de separadores
 def limpiar_numero(valor):
     if pd.isna(valor) or valor == '' or valor is None:
         return 0.0
     if isinstance(valor, (int, float)):
         return float(valor)
-    val_str = str(valor).replace('$', '').replace('.', '').replace(',', '.').strip()
+    
+    val_str = str(valor).replace('$', '').strip()
+    
+    # Si contiene coma, manejamos formato de miles con punto y decimal con coma
+    if ',' in val_str:
+        val_str = val_str.replace('.', '').replace(',', '.')
+    
     try:
         return float(val_str)
     except:
@@ -133,7 +169,7 @@ def cargar_datos_desde_drive(url):
         })
 
     if not datos_limpios:
-        raise ValueError("No se encontraron registros.")
+        raise ValueError("No se encontraron registros de Códigos Postales en las columnas D, E y F.")
 
     return pd.DataFrame(datos_limpios)
 
@@ -169,7 +205,7 @@ def calcular_tarifa(cp_data, peso_real, m3):
             "Costo Total": tarifa_500 + costo_excedente
         }
 
-# --- ENCABEZADO CON TIPOGRAFÍA TIPOGRÁFICA ---
+# --- ENCABEZADO ---
 st.markdown('<div class="titulo-cotizador">Cotizador Andreani</div>', unsafe_allow_html=True)
 st.markdown('<div class="subtitulo-cotizador">Cálculo automático de tarifas de flete según destino y peso volumétrico</div>', unsafe_allow_html=True)
 
@@ -182,7 +218,7 @@ except Exception as e:
     st.error(f"Error de conexión con el tarifario: {e}")
     st.stop()
 
-st.subheader("Datos de Envío")
+st.subheader("Datos del Envío")
 
 seleccion = st.selectbox("📌 Buscar por Código Postal o Localidad", options=opciones_cp)
 
@@ -201,19 +237,24 @@ st.markdown("<br>", unsafe_allow_html=True)
 if st.button("CALCULAR COTIZACIÓN", type="primary"):
     resultado = calcular_tarifa(cp_data, peso_real, m3_carga)
     
-    st.success("✔️ Cotización calculada exitosamente")
+    # RESULTADO PRINCIPAL CENTRADO Y DESTACADO
+    st.markdown(f"""
+        <div class="resultado-box">
+            <div class="resultado-label">Costo Total del Flete</div>
+            <div class="resultado-monto">${resultado['Costo Total']:,.2f}</div>
+            <div class="resultado-sub-info">
+                <div class="sub-info-item">Peso Facturable: <span class="sub-info-val">{resultado['Peso Facturable']:,.2f} kg</span></div>
+                <div class="sub-info-item">Escala Aplicada: <span class="sub-info-val">{resultado['Tramo']}</span></div>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
     
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Peso Facturable", f"{resultado['Peso Facturable']:,.2f} kg")
-    c2.metric("Tramo de Escala", resultado['Tramo'])
-    c3.metric("Costo Total", f"${resultado['Costo Total']:,.2f}")
-    
-    st.divider()
-    st.markdown("### 📋 Detalle de Facturación")
-    st.write(f"- **Destino:** {cp_data['Localidad']}, {cp_data['Provincia']} (CP {cp_data['CP']})")
-    st.write(f"- **Peso Volumétrico:** {resultado['Peso Volumétrico']:,.2f} kg (M3 × 175 kg)")
-    st.write(f"- **Tarifa Base Aplicada:** ${resultado['Costo Base']:,.2f}")
+    st.markdown("### 📋 Desglose del Cálculo")
+    st.write(f"- **Código Postal:** {cp_data['CP']}")
+    st.write(f"- **Localidad:** {cp_data['Localidad']}, {cp_data['Provincia']}")
+    st.write(f"- **Peso Volumétrico:** {resultado['Peso Volumétrico']:,.2f} kg (Cálculo: M3 × 175 kg)")
+    st.write(f"- **Tarifa Base:** ${resultado['Costo Base']:,.2f}")
     if resultado['Costo Excedente'] > 0:
         kg_exc = resultado['Peso Facturable'] - 500
         st.write(f"- **Kilos Excedentes (>500 kg):** {kg_exc:,.2f} kg")
-        st.write(f"- **Costo por Excedente:** ${resultado['Costo Excedente']:,.2f}")
+        st.write(f"- **Costo Excedente:** ${resultado['Costo Excedente']:,.2f}")
